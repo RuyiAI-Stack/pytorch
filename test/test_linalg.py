@@ -7514,6 +7514,7 @@ class TestLinalg(TestCase):
         with self.assertRaisesRegex(RuntimeError, "must be batches of square matrices"):
             torch.ops.aten.matrix_exp_backward(non_square, grad_non_square)
 
+    @slowTest
     @skipCPUIfNoLapack
     @dtypes(torch.float, torch.double, torch.complex64, torch.complex128)
     def test_linalg_matrix_exp_perverse_nan_values(self, device, dtype):
