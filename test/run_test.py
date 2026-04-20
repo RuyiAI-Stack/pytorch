@@ -304,7 +304,6 @@ RISCV64_BLOCKLIST = [
     # Failed to import torch.distributed.run: cannot import name 'Store' from 'torch.distributed'
     "test_testing"
     # TODO:L1 cache size = 0, need to fix
-    "inductor/test_cpu_select_algorithm"
     "inductor/test_aot_inductor_arrayref"
     "inductor/test_cpu_repro"
     # TODO:scalar value not equal, need to fix
