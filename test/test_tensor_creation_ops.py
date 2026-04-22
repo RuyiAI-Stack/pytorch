@@ -32,6 +32,7 @@ from torch.testing._internal.common_utils import (
     IS_SANDCASTLE,
     IS_S390X,
     IS_ARM64,
+    IS_RISCV64,
     parametrize,
     TEST_WITH_TORCHDYNAMO,
     xfailIfTorchDynamo,
@@ -1109,6 +1110,13 @@ class TestTensorCreation(TestCase):
 
         if dtype == torch.bool:
             refs = (True, True, True)
+        elif IS_RISCV64:
+            if dtype in (torch.int32, torch.int64):
+                refs = (torch.iinfo(dtype).min, torch.iinfo(dtype).max, torch.iinfo(dtype).max)
+            elif dtype == torch.uint8:
+                refs = (0, torch.iinfo(dtype).max, torch.iinfo(dtype).max)
+            elif dtype in (torch.int8, torch.int16):
+                refs = (0, -1, -1)
         elif IS_ARM64:
             refs = (torch.iinfo(dtype).min, torch.iinfo(dtype).max, 0)
             if dtype in (torch.int8, torch.int16):

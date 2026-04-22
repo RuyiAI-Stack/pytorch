@@ -1415,6 +1415,7 @@ IS_MACOS = sys.platform == "darwin"
 IS_PPC = platform.machine() == "ppc64le"
 IS_X86 = platform.machine() in ('x86_64', 'i386')
 IS_ARM64 = platform.machine() in ('arm64', 'aarch64')
+IS_RISCV64 = platform.machine() == 'riscv64'
 IS_S390X = platform.machine() == "s390x"
 IS_AVX512_VNNI_SUPPORTED = cpu_supports_feature("vnni")
 IS_CPU_EXT_SVE_SUPPORTED = cpu_supports_feature("sve")
