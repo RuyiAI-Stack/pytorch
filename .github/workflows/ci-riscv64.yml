@@ -1,0 +1,45 @@
+# Note: this runner is provided externally, so we minimize its access to
+# secrets.
+on:
+  push:
+    branches: [riscv-base]
+  # No pull_request (this should be safe, but the number of runners is limited
+  # so we limit it to pushes only.)
+
+name: CI (riscv64)
+
+permissions:
+  contents: read
+  # No permissions to secrets.
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+# FIXME: Drop this
+env:
+  RUSTFLAGS: -D warnings
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: [self-hosted, linux, amd64]
+    # This is in its own separate environment.
+    environment: riscv64
+    steps:
+      - name: Extract PR info
+        run: |
+          echo "BASE_SHA=${{ github.event.pull_request.base.sha }}"
+          echo "HEAD_SHA=${{ github.event.pull_request.head.sha }}"
+          echo "PR_NUMBER=${{ github.event.pull_request.number }}"
+
+      - name: Prepare patch
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "PR detected"
+            echo "PATCH_URL=https://github.com/${{ github.repository }}/pull/${{ github.event.pull_request.number }}.patch" >> $GITHUB_ENV
+          fi
+      - name: Trigger Jenkins Job
+        run: |
+          bash /home/jenkins/scripts/jenkins-run.sh
