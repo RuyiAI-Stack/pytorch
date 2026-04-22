@@ -1,0 +1,97 @@
+# Note: this runner is provided externally, so we minimize its access to
+# secrets.
+on:
+  push:
+    branches: [riscv]
+  pull_request_target:
+    branches: [riscv]
+
+name: CI (riscv64)
+
+permissions:
+  contents: read
+  # No permissions to secrets.
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+# FIXME: Drop this
+env:
+  RUSTFLAGS: -D warnings
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: [self-hosted, linux, amd64]
+    # This is in its own separate environment.
+    environment: riscv64
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # merge-base
+
+      - name: Extract PR info
+        run: |
+          echo "BASE_SHA=${{ github.event.pull_request.base.sha }}" >> $GITHUB_ENV
+          echo "HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> GITHUB_ENV
+          echo "PR_NUMBER=${{ github.event.pull_request.number }}" >> GITHUB_ENV
+
+      - name: Diff base and head
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "PR build"
+            BASE_REF="${{ github.base_ref }}"
+            HEAD_REF="${{ github.head_ref }}"
+
+            echo "Base ref: $BASE_REF"
+            echo "Head ref: $HEAD_REF"
+
+            # 强约束: PR 必须基于 riscv
+            if [ "$BASE_REF" != "riscv" ]; then
+              echo "ERROR: PR must target 'riscv' branch, got '$BASE_REF'"
+              exit 1
+            fi
+
+            BASE="$BASE_SHA"
+            HEAD="$HEAD_SHA"
+          else
+            echo "Push to riscv"
+            # 统一用 riscv 作为 baseline
+            git fetch origin riscv
+
+            BASE=$(git merge-base HEAD origin/main)
+            HEAD=$(git rev-parse HEAD)
+
+          fi
+
+          echo "BASE_COMMIT=$BASE" >> $GITHUB_ENV
+          echo "HEAD_COMMIT=$HEAD" >> $GITHUB_ENV
+
+          echo "Base: $BASE"
+          echo "Head: $HEAD"
+
+      - name: Generate patch
+        run: |
+          echo "Generating patch..."
+
+          git diff $BASE_COMMIT $HEAD_COMMIT > patch.diff
+
+          echo "Patch size:"
+          wc -l patch.diff
+          cat patch.diff
+
+          # 可选：避免空 patch
+          if [ ! -s patch.diff ]; then
+            echo "Warning: empty patch"
+          fi
+
+      - name: Trigger Jenkins Job
+        run: |
+          export BASE_COMMIT=${BASE_COMMIT}
+          export PATCH_FILE=$(pwd)/patch.diff
+          export GITHUB_PR=${PR_NUMBER:-0}
+
+          #bash /home/jenkins/scripts/jenkins-run.sh
