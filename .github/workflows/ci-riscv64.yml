@@ -42,7 +42,7 @@ jobs:
       - name: Diff base and head
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "PR build"
+          echo "Push PR build"
             BASE_REF="${{ github.base_ref }}"
             HEAD_REF="${{ github.head_ref }}"
 
