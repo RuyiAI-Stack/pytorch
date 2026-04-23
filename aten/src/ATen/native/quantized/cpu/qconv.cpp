@@ -30,6 +30,7 @@
 #include <ATen/ops/_empty_affine_quantized.h>
 #include <ATen/ops/_empty_affine_quantized_native.h>
 #include <ATen/ops/_empty_per_channel_affine_quantized_native.h>
+#include <ATen/ops/dequantize.h>
 #include <ATen/ops/empty.h>
 #include <ATen/ops/quantize_per_channel_native.h>
 #include <ATen/ops/quantize_per_tensor_native.h>
@@ -2147,6 +2148,17 @@ class QConvAddInt8 final {
       }
     }
 #endif
+    if (ctx.qEngine() == at::QEngine::NoQEngine) {
+      at::Tensor act_fp = at::dequantize(act);
+      at::Tensor accum_fp = at::dequantize(accum);
+      at::Tensor output_fp = packed_weight->apply_dynamic(act_fp, false);
+      output_fp = output_fp + accum_fp;
+      if (kReluFused) {
+        output_fp = at::relu(output_fp);
+      }
+      return at::native::quantize_per_tensor(
+          output_fp, output_scale, output_zero_point, c10::kQInt8);
+    }
     TORCH_CHECK(
     false,
     "Didn't find engine for operation quantized::conv2d_add.",

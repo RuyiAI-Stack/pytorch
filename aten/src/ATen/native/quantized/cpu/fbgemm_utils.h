@@ -352,6 +352,146 @@ Tensor ConvertConvWeightsToChannelLastTensor(
 
 #endif // USE_FBGEMM
 
+struct TORCH_API PackedLinearWeightNoQEngine : public LinearPackedParamsBase {
+  PackedLinearWeightNoQEngine(
+      at::Tensor weight,
+      std::optional<at::Tensor> bias)
+      : weight_(std::move(weight)),
+        bias_(std::move(bias)) {}
+
+  at::Tensor weight_;
+  std::optional<at::Tensor> bias_;
+
+  at::Tensor apply(
+      at::Tensor input,
+      double output_scale,
+      int64_t output_zero_point) override;
+
+  at::Tensor apply_relu(
+      at::Tensor input,
+      double output_scale,
+      int64_t output_zero_point) override;
+
+  at::Tensor& apply_out(
+      const at::Tensor& input,
+      double output_scale,
+      int64_t output_zero_point,
+      at::Tensor& output) override;
+
+  at::Tensor& apply_relu_out(
+      const at::Tensor& input,
+      double output_scale,
+      int64_t output_zero_point,
+      at::Tensor& output) override;
+
+  at::Tensor apply_with_input_q_dq_qweight_dq_output_fp32(
+      at::Tensor input,
+      double input_scale,
+      int64_t input_zero_point) override;
+
+  at::Tensor apply_with_input_q_dq_qweight_dq_relu_output_fp32(
+      at::Tensor input,
+      double input_scale,
+      int64_t input_zero_point) override;
+
+  at::Tensor apply_dynamic(at::Tensor input, bool reduce_range = false)
+      override;
+
+  at::Tensor apply_dynamic_relu(at::Tensor input, bool reduce_range = false)
+      override;
+
+  std::tuple<at::Tensor, std::optional<at::Tensor>> unpack() override;
+
+  std::optional<at::Tensor> bias() override {
+    return bias_;
+  }
+
+  static c10::intrusive_ptr<LinearPackedParamsBase> prepack(
+      at::Tensor weight,
+      std::optional<at::Tensor> bias);
+};
+
+template <int kSpatialDim = 2>
+struct TORCH_API PackedConvWeightNoQEngine
+    : public ConvPackedParamsBase<kSpatialDim> {
+  PackedConvWeightNoQEngine(
+      at::Tensor weight,
+      std::optional<at::Tensor> bias,
+      torch::List<int64_t> stride,
+      torch::List<int64_t> padding,
+      torch::List<int64_t> output_padding,
+      torch::List<int64_t> dilation,
+      int64_t groups,
+      bool transpose)
+      : weight_(std::move(weight)),
+        bias_(std::move(bias)),
+        stride_(std::move(stride)),
+        padding_(std::move(padding)),
+        output_padding_(std::move(output_padding)),
+        dilation_(std::move(dilation)),
+        groups_(groups),
+        transpose_(transpose) {}
+
+  at::Tensor weight_;
+  std::optional<at::Tensor> bias_;
+  torch::List<int64_t> stride_;
+  torch::List<int64_t> padding_;
+  torch::List<int64_t> output_padding_;
+  torch::List<int64_t> dilation_;
+  int64_t groups_;
+  bool transpose_;
+
+  at::Tensor apply(
+      const at::Tensor& input,
+      double output_scale,
+      int64_t output_zero_point) override;
+
+  at::Tensor apply_relu(
+      const at::Tensor& input,
+      double output_scale,
+      int64_t output_zero_point) override;
+
+  at::Tensor apply_dynamic(
+      const at::Tensor& input,
+      bool reduce_range) override;
+
+  std::tuple<at::Tensor, std::optional<at::Tensor>> unpack() override;
+
+  torch::List<int64_t> stride() const override {
+    return stride_;
+  }
+
+  torch::List<int64_t> padding() const override {
+    return padding_;
+  }
+
+  torch::List<int64_t> output_padding() const override {
+    return output_padding_;
+  }
+
+  torch::List<int64_t> dilation() const override {
+    return dilation_;
+  }
+
+  int64_t groups() const override {
+    return groups_;
+  }
+
+  bool transpose() const override {
+    return transpose_;
+  }
+
+  static c10::intrusive_ptr<ConvPackedParamsBase<kSpatialDim>> prepack(
+      at::Tensor weight,
+      std::optional<at::Tensor> bias,
+      torch::List<int64_t> stride,
+      torch::List<int64_t> padding,
+      torch::List<int64_t> output_padding,
+      torch::List<int64_t> dilation,
+      int64_t groups,
+      bool transpose);
+};
+
 struct TORCH_API PackedEmbeddingBagWeight : public EmbeddingPackedParamsBase {
   PackedEmbeddingBagWeight(
       at::Tensor packed_w,

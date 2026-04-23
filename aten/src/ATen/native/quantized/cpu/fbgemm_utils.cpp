@@ -25,6 +25,16 @@
 #include <ATen/Functions.h>
 #else
 #include <ATen/ops/cat.h>
+#include <ATen/ops/conv1d.h>
+#include <ATen/ops/conv2d.h>
+#include <ATen/ops/conv3d.h>
+#include <ATen/ops/conv_transpose1d.h>
+#include <ATen/ops/conv_transpose2d.h>
+#include <ATen/ops/conv_transpose3d.h>
+#include <ATen/ops/dequantize.h>
+#include <ATen/ops/linear.h>
+#include <ATen/ops/quantize_per_tensor.h>
+#include <ATen/ops/relu.h>
 
 #include <utility>
 #endif
@@ -365,6 +375,270 @@ Tensor ConvertConvWeightsToChannelLastTensor<3>(
 
 #endif // USE_FBGEMM
 
+// NoQEngine packed weight implementations: dequantize, float compute, quantize.
+// Used as a fallback when no hardware-specific quantized engine is available.
+
+c10::intrusive_ptr<LinearPackedParamsBase> PackedLinearWeightNoQEngine::prepack(
+    at::Tensor weight,
+    std::optional<at::Tensor> bias) {
+  return c10::make_intrusive<PackedLinearWeightNoQEngine>(
+      std::move(weight), std::move(bias));
+}
+
+at::Tensor PackedLinearWeightNoQEngine::apply(
+    at::Tensor input,
+    double output_scale,
+    int64_t output_zero_point) {
+  at::Tensor input_fp = at::dequantize(input);
+  at::Tensor weight_fp = at::dequantize(weight_);
+  at::Tensor output_fp = at::linear(input_fp, weight_fp, bias_);
+  return at::quantize_per_tensor(
+      output_fp, output_scale, output_zero_point, c10::kQInt8);
+}
+
+at::Tensor PackedLinearWeightNoQEngine::apply_relu(
+    at::Tensor input,
+    double output_scale,
+    int64_t output_zero_point) {
+  at::Tensor input_fp = at::dequantize(input);
+  at::Tensor weight_fp = at::dequantize(weight_);
+  at::Tensor output_fp = at::linear(input_fp, weight_fp, bias_);
+  at::Tensor relu_out = at::relu(output_fp);
+  return at::quantize_per_tensor(
+      relu_out, output_scale, output_zero_point, c10::kQInt8);
+}
+
+at::Tensor& PackedLinearWeightNoQEngine::apply_out(
+    const at::Tensor& input,
+    double output_scale,
+    int64_t output_zero_point,
+    at::Tensor& output) {
+  at::Tensor input_fp = at::dequantize(input);
+  at::Tensor weight_fp = at::dequantize(weight_);
+  at::Tensor output_fp = at::linear(input_fp, weight_fp, bias_);
+  at::Tensor q_out = at::quantize_per_tensor(
+      output_fp, output_scale, output_zero_point, c10::kQInt8);
+  output.copy_(q_out);
+  return output;
+}
+
+at::Tensor& PackedLinearWeightNoQEngine::apply_relu_out(
+    const at::Tensor& input,
+    double output_scale,
+    int64_t output_zero_point,
+    at::Tensor& output) {
+  at::Tensor input_fp = at::dequantize(input);
+  at::Tensor weight_fp = at::dequantize(weight_);
+  at::Tensor output_fp = at::linear(input_fp, weight_fp, bias_);
+  at::Tensor relu_out = at::relu(output_fp);
+  at::Tensor q_out = at::quantize_per_tensor(
+      relu_out, output_scale, output_zero_point, c10::kQInt8);
+  output.copy_(q_out);
+  return output;
+}
+
+at::Tensor PackedLinearWeightNoQEngine::apply_with_input_q_dq_qweight_dq_output_fp32(
+    at::Tensor input,
+    double input_scale,
+    int64_t input_zero_point) {
+  at::Tensor input_fp = at::dequantize(input);
+  at::Tensor weight_fp = at::dequantize(weight_);
+  return at::linear(input_fp, weight_fp, bias_);
+}
+
+at::Tensor PackedLinearWeightNoQEngine::apply_with_input_q_dq_qweight_dq_relu_output_fp32(
+    at::Tensor input,
+    double input_scale,
+    int64_t input_zero_point) {
+  at::Tensor input_fp = at::dequantize(input);
+  at::Tensor weight_fp = at::dequantize(weight_);
+  at::Tensor output_fp = at::linear(input_fp, weight_fp, bias_);
+  return at::relu(output_fp);
+}
+
+at::Tensor PackedLinearWeightNoQEngine::apply_dynamic(
+    at::Tensor input,
+    bool reduce_range) {
+  at::Tensor weight_fp = at::dequantize(weight_);
+  return at::linear(input, weight_fp, bias_);
+}
+
+at::Tensor PackedLinearWeightNoQEngine::apply_dynamic_relu(
+    at::Tensor input,
+    bool reduce_range) {
+  at::Tensor weight_fp = at::dequantize(weight_);
+  at::Tensor output_fp = at::linear(input, weight_fp, bias_);
+  return at::relu(output_fp);
+}
+
+std::tuple<at::Tensor, std::optional<at::Tensor>>
+PackedLinearWeightNoQEngine::unpack() {
+  return std::make_tuple(weight_, bias_);
+}
+
+template <int kSpatialDim>
+c10::intrusive_ptr<ConvPackedParamsBase<kSpatialDim>>
+PackedConvWeightNoQEngine<kSpatialDim>::prepack(
+    at::Tensor weight,
+    std::optional<at::Tensor> bias,
+    torch::List<int64_t> stride,
+    torch::List<int64_t> padding,
+    torch::List<int64_t> output_padding,
+    torch::List<int64_t> dilation,
+    int64_t groups,
+    bool transpose) {
+  return c10::make_intrusive<PackedConvWeightNoQEngine<kSpatialDim>>(
+      std::move(weight),
+      std::move(bias),
+      std::move(stride),
+      std::move(padding),
+      std::move(output_padding),
+      std::move(dilation),
+      groups,
+      transpose);
+}
+
+template <int kSpatialDim>
+at::Tensor PackedConvWeightNoQEngine<kSpatialDim>::apply(
+    const at::Tensor& input,
+    double output_scale,
+    int64_t output_zero_point) {
+  at::Tensor input_fp = at::dequantize(input);
+  at::Tensor weight_fp = at::dequantize(weight_);
+  auto stride = stride_.vec();
+  auto padding = padding_.vec();
+  auto dilation = dilation_.vec();
+  at::Tensor output_fp;
+  if (transpose_) {
+    auto output_padding = output_padding_.vec();
+    if constexpr (kSpatialDim == 1) {
+      output_fp = at::conv_transpose1d(
+          input_fp, weight_fp, bias_,
+          stride, padding, output_padding, groups_, dilation);
+    } else if constexpr (kSpatialDim == 2) {
+      output_fp = at::conv_transpose2d(
+          input_fp, weight_fp, bias_,
+          stride, padding, output_padding, groups_, dilation);
+    } else if constexpr (kSpatialDim == 3) {
+      output_fp = at::conv_transpose3d(
+          input_fp, weight_fp, bias_,
+          stride, padding, output_padding, groups_, dilation);
+    }
+  } else {
+    if constexpr (kSpatialDim == 1) {
+      output_fp = at::conv1d(
+          input_fp, weight_fp, bias_,
+          stride, padding, dilation, groups_);
+    } else if constexpr (kSpatialDim == 2) {
+      output_fp = at::conv2d(
+          input_fp, weight_fp, bias_,
+          stride, padding, dilation, groups_);
+    } else if constexpr (kSpatialDim == 3) {
+      output_fp = at::conv3d(
+          input_fp, weight_fp, bias_,
+          stride, padding, dilation, groups_);
+    }
+  }
+  return at::quantize_per_tensor(
+      output_fp, output_scale, output_zero_point, c10::kQInt8);
+}
+
+template <int kSpatialDim>
+at::Tensor PackedConvWeightNoQEngine<kSpatialDim>::apply_relu(
+    const at::Tensor& input,
+    double output_scale,
+    int64_t output_zero_point) {
+  at::Tensor input_fp = at::dequantize(input);
+  at::Tensor weight_fp = at::dequantize(weight_);
+  auto stride = stride_.vec();
+  auto padding = padding_.vec();
+  auto dilation = dilation_.vec();
+  at::Tensor output_fp;
+  if (transpose_) {
+    auto output_padding = output_padding_.vec();
+    if constexpr (kSpatialDim == 1) {
+      output_fp = at::conv_transpose1d(
+          input_fp, weight_fp, bias_,
+          stride, padding, output_padding, groups_, dilation);
+    } else if constexpr (kSpatialDim == 2) {
+      output_fp = at::conv_transpose2d(
+          input_fp, weight_fp, bias_,
+          stride, padding, output_padding, groups_, dilation);
+    } else if constexpr (kSpatialDim == 3) {
+      output_fp = at::conv_transpose3d(
+          input_fp, weight_fp, bias_,
+          stride, padding, output_padding, groups_, dilation);
+    }
+  } else {
+    if constexpr (kSpatialDim == 1) {
+      output_fp = at::conv1d(
+          input_fp, weight_fp, bias_,
+          stride, padding, dilation, groups_);
+    } else if constexpr (kSpatialDim == 2) {
+      output_fp = at::conv2d(
+          input_fp, weight_fp, bias_,
+          stride, padding, dilation, groups_);
+    } else if constexpr (kSpatialDim == 3) {
+      output_fp = at::conv3d(
+          input_fp, weight_fp, bias_,
+          stride, padding, dilation, groups_);
+    }
+  }
+  at::Tensor relu_out = at::relu(output_fp);
+  return at::quantize_per_tensor(
+      relu_out, output_scale, output_zero_point, c10::kQInt8);
+}
+
+template <int kSpatialDim>
+at::Tensor PackedConvWeightNoQEngine<kSpatialDim>::apply_dynamic(
+    const at::Tensor& input,
+    bool reduce_range) {
+  at::Tensor weight_fp = at::dequantize(weight_);
+  auto stride = stride_.vec();
+  auto padding = padding_.vec();
+  auto dilation = dilation_.vec();
+  if (transpose_) {
+    auto output_padding = output_padding_.vec();
+    if constexpr (kSpatialDim == 1) {
+      return at::conv_transpose1d(
+          input, weight_fp, bias_,
+          stride, padding, output_padding, groups_, dilation);
+    } else if constexpr (kSpatialDim == 2) {
+      return at::conv_transpose2d(
+          input, weight_fp, bias_,
+          stride, padding, output_padding, groups_, dilation);
+    } else {
+      return at::conv_transpose3d(
+          input, weight_fp, bias_,
+          stride, padding, output_padding, groups_, dilation);
+    }
+  } else {
+    if constexpr (kSpatialDim == 1) {
+      return at::conv1d(
+          input, weight_fp, bias_,
+          stride, padding, dilation, groups_);
+    } else if constexpr (kSpatialDim == 2) {
+      return at::conv2d(
+          input, weight_fp, bias_,
+          stride, padding, dilation, groups_);
+    } else {
+      return at::conv3d(
+          input, weight_fp, bias_,
+          stride, padding, dilation, groups_);
+    }
+  }
+}
+
+template <int kSpatialDim>
+std::tuple<at::Tensor, std::optional<at::Tensor>>
+PackedConvWeightNoQEngine<kSpatialDim>::unpack() {
+  return std::make_tuple(weight_, bias_);
+}
+
+template struct PackedConvWeightNoQEngine<1>;
+template struct PackedConvWeightNoQEngine<2>;
+template struct PackedConvWeightNoQEngine<3>;
+
 namespace {
   // This is really terrible, but couldn't figure out a better way to constexpr convert int to
   // string and then perform string concatenation on/with it
@@ -469,6 +743,9 @@ int register_linear_params() {
                   return std::apply(PackedLinearWeightsOnednn::prepack, std::move(state));
                 }
 #endif // #if AT_MKLDNN_ENABLED()
+                if (at::globalContext().qEngine() == at::QEngine::NoQEngine) {
+                  return std::apply(PackedLinearWeightNoQEngine::prepack, std::move(state));
+                }
                 TORCH_CHECK(false, "Unknown qengine");
               })
               .def("bias", [](const c10::intrusive_ptr<LinearPackedParamsBase>& self) {

@@ -606,6 +606,10 @@ class QLinearPackWeightInt8 final {
       return PackedLinearWeightsOnednn::prepack(std::move(weight), std::move(bias));
     }
 #endif // #if AT_MKLDNN_ENABLED()
+    if (ctx.qEngine() == at::QEngine::NoQEngine) {
+      return PackedLinearWeightNoQEngine::prepack(
+          std::move(weight), std::move(bias));
+    }
     TORCH_CHECK(
         false,
         "Didn't find engine for operation quantized::linear_prepack ",
@@ -645,6 +649,10 @@ class QLinearPackWeightFp16 final {
           "not supported by ONEDNN");
     }
 #endif // #if AT_MKLDNN_ENABLED()
+    if (ctx.qEngine() == at::QEngine::NoQEngine) {
+      return PackedLinearWeightNoQEngine::prepack(
+          std::move(weight), std::move(bias));
+    }
     TORCH_CHECK(
         false,
         "Didn't find engine for operation quantized::linear_prepack_fp16 ",

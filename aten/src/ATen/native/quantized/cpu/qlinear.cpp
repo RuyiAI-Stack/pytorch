@@ -25,6 +25,7 @@
 #include <ATen/ops/_empty_affine_quantized_native.h>  // for empty_affine_qu...
 #include <ATen/ops/empty.h>                           // for empty
 #include <ATen/ops/quantize_per_channel_native.h>     // for quantize_per_ch...
+#include <ATen/ops/dequantize.h>
 #include <ATen/ops/quantize_per_tensor_native.h>      // for quantize_per_te...
 #include <ATen/ops/zeros.h>
 #include <ATen/ops/_weight_int4pack_mm_for_cpu.h>
@@ -1526,6 +1527,15 @@ class QLinearLeakyReluInt8 final {
           std::move(input), output_scale, output_zero_point, negative_slope);
     }
 #endif
+    if (ctx.qEngine() == at::QEngine::NoQEngine) {
+      auto [weight, bias] = packed_weight->unpack();
+      at::Tensor input_fp = at::dequantize(input);
+      at::Tensor weight_fp = at::dequantize(weight);
+      at::Tensor output_fp = at::linear(input_fp, weight_fp, bias);
+      at::Tensor lr_out = at::leaky_relu(output_fp, negative_slope);
+      return at::native::quantize_per_tensor(
+          lr_out, output_scale, output_zero_point, c10::kQInt8);
+    }
     TORCH_CHECK(
         false,
         "Didn't find engine for operation quantized::linear_leaky_relu ",
@@ -1550,6 +1560,15 @@ class QLinearTanhInt8 final {
           std::move(input), output_scale, output_zero_point);
     }
 #endif
+    if (ctx.qEngine() == at::QEngine::NoQEngine) {
+      auto [weight, bias] = packed_weight->unpack();
+      at::Tensor input_fp = at::dequantize(input);
+      at::Tensor weight_fp = at::dequantize(weight);
+      at::Tensor output_fp = at::linear(input_fp, weight_fp, bias);
+      at::Tensor tanh_out = at::tanh(output_fp);
+      return at::native::quantize_per_tensor(
+          tanh_out, output_scale, output_zero_point, c10::kQInt8);
+    }
     TORCH_CHECK(
         false,
         "Didn't find engine for operation quantized::linear_tanh ",

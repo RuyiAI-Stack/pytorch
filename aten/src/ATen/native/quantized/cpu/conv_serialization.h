@@ -410,6 +410,18 @@ c10::intrusive_ptr<ConvPackedParamsBase<kSpatialDim>> deserialize_conv(
     );
   }
 #endif // AT_MKLDNN_ENABLED()
+  if (ctx.qEngine() == at::QEngine::NoQEngine) {
+    return PackedConvWeightNoQEngine<kSpatialDim>::prepack(
+      std::move(weight.value()),
+      std::move(bias),
+      stride,
+      padding,
+      output_padding,
+      dilation,
+      groups,
+      transpose
+    );
+  }
 TORCH_CHECK(
   false,
   "Didn't find engine for when deserializing ConvPackedParams: ",

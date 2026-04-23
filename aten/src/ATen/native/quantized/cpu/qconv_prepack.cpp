@@ -718,6 +718,12 @@ class QConvPackWeightInt8 final {
     }
 #endif
 
+    if (ctx.qEngine() == at::QEngine::NoQEngine) {
+      return PackedConvWeightNoQEngine<kSpatialDim>::prepack(
+          std::move(weight), std::move(bias), stride, padding,
+          output_padding, dilation, groups, transpose);
+    }
+
     TORCH_CHECK(
         false,
         "Didn't find engine for operation quantized::conv2d_prepack ",
@@ -813,6 +819,12 @@ class QConv1dPackWeightInt8 final {
           transpose);
     }
 #endif
+
+    if (ctx.qEngine() == at::QEngine::NoQEngine) {
+      return PackedConvWeightNoQEngine<2>::prepack(
+          std::move(weight), std::move(bias), stride, padding,
+          output_padding, dilation, groups, transpose);
+    }
 
     TORCH_CHECK(
         false,

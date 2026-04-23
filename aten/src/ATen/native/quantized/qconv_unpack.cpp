@@ -70,6 +70,10 @@ class QConvUnpackWeightsInt8 final {
     }
 #endif
 
+    if (ctx.qEngine() == at::QEngine::NoQEngine) {
+      return packed_weight->unpack();
+    }
+
     TORCH_CHECK(
         false,
         "Didn't find engine for operation quantized::conv2d_unpack ",
@@ -110,6 +114,12 @@ class QConv1dUnpackWeightsInt8 final {
       return std::tuple<at::Tensor, std::optional<at::Tensor>>(new_weight, bias);
     }
 #endif
+
+    if (ctx.qEngine() == at::QEngine::NoQEngine) {
+      std::tie(weight, bias) = packed_weight->unpack();
+      weight.squeeze_(quant_utils::kConv1dSqueezeDim + 2);
+      return std::tuple<at::Tensor, std::optional<at::Tensor>>(weight, bias);
+    }
 
     TORCH_CHECK(
         false,
