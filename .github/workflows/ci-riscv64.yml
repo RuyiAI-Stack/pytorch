@@ -39,7 +39,6 @@ jobs:
         run: |
           echo "BASE_SHA=${{ github.event.pull_request.base.sha }}" >> $GITHUB_ENV
           echo "HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> GITHUB_ENV
-          echo "PR_NUMBER=${{ github.event.pull_request.number }}" >> GITHUB_ENV
 
       - name: Diff base and head
         run: |
@@ -98,6 +97,5 @@ jobs:
         run: |
           export BASE_COMMIT=${BASE_COMMIT}
           export PATCH_FILE=$(pwd)/patch.diff
-          export GITHUB_PR=${PR_NUMBER:-0}
 
           #bash /home/jenkins/scripts/jenkins-run.sh
