@@ -33,6 +33,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 3000   # shadow clone?
+          ref: ${{ github.sha }} # including latest sha
 
       - name: Extract PR info
         run: |
@@ -42,7 +43,7 @@ jobs:
 
       - name: Diff base and head
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
+          if [[ "${{ github.event_name }}" = "pull_request" || "${{ github.event_name }}" == "pull_request_target" ]]; then
             echo "Push PR build"
             BASE_REF="${{ github.base_ref }}"
             HEAD_REF="${{ github.head_ref }}"
@@ -56,19 +57,19 @@ jobs:
               exit 1
             fi
 
-            // need to get contents of the PR
+            # need to get contents of the PR
             git fetch origin pull/${{ github.event.pull_request.number }}/head:pr-head
-            git fetch origin pull/${{ github.event.pull_request.number }}/base:pr-base
-
-            BASE=$(git merge-base pr-base pr-head)
+            git fetch origin main
+            BASE=$(git merge-base pr-head origin/main)
             HEAD=pr-head
           else
             echo "Push to riscv"
             # 统一用 riscv 作为 baseline
-            git fetch origin riscv
+            git fetch origin main
+            #git fetch origin riscv
 
-            BASE=$(git merge-base HEAD origin/main)
-            HEAD=$(git rev-parse HEAD)
+            BASE=$(git merge-base ${{ github.sha }} origin/main) # The latest commit
+            HEAD=${{ github.sha }}
 
           fi
 
