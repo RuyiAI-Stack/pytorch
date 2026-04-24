@@ -6,7 +6,6 @@ on:
 
   pull_request_target:
     types: [opened, synchronize, reopened]
-  
 
 name: CI (riscv64)
 
@@ -33,7 +32,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # merge-base
+          fetch-depth: 3000   # shadow clone?
 
       - name: Extract PR info
         run: |
@@ -44,7 +43,7 @@ jobs:
       - name: Diff base and head
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-          echo "Push PR build"
+            echo "Push PR build"
             BASE_REF="${{ github.base_ref }}"
             HEAD_REF="${{ github.head_ref }}"
 
@@ -57,8 +56,12 @@ jobs:
               exit 1
             fi
 
-            BASE="$BASE_SHA"
-            HEAD="$HEAD_SHA"
+            // need to get contents of the PR
+            git fetch origin pull/${{ github.event.pull_request.number }}/head:pr-head
+            git fetch origin pull/${{ github.event.pull_request.number }}/base:pr-base
+
+            BASE=$(git merge-base pr-base pr-head)
+            HEAD=pr-head
           else
             echo "Push to riscv"
             # 统一用 riscv 作为 baseline
