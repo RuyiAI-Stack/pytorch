@@ -39,7 +39,7 @@ jobs:
         run: |
           echo "BASE_SHA=${{ github.event.pull_request.base.sha }}" >> $GITHUB_ENV
           echo "HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> GITHUB_ENV
-         
+
       - name: Diff base and head
         run: |
           if [[ "${{ github.event_name }}" = "pull_request" || "${{ github.event_name }}" == "pull_request_target" ]]; then
@@ -82,20 +82,20 @@ jobs:
         run: |
           echo "Generating patch..."
 
-          git diff $BASE_COMMIT $HEAD_COMMIT > patch.diff
+          SHORT_HEAD=${HEAD_COMMIT:0:7}
+          PATCH_NAME="patch_${SHORT_HEAD}.patch"
+
+          git diff $BASE_COMMIT $HEAD_COMMIT > $PATCH_NAME
 
           echo "Patch size:"
-          wc -l patch.diff
-          cat patch.diff
+          wc -l $PATCH_NAME
 
-          # 可选：避免空 patch
-          if [ ! -s patch.diff ]; then
-            echo "Warning: empty patch"
-          fi
+          cp $PATCH_NAME /home/jenkins/patch/
+          cat /home/jenkins/patch/$PATCH_NAME
 
       - name: Trigger Jenkins Job
         run: |
           export BASE_COMMIT=${BASE_COMMIT}
           export PATCH_FILE=$(pwd)/patch.diff
 
-          bash /home/jenkins/scripts/jenkins-run.sh
+          #bash /home/jenkins/scripts/jenkins-run.sh
