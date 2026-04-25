@@ -5457,27 +5457,22 @@ def bytes_to_scalar(byte_list: list[int], dtype: torch.dtype, device: torch.devi
             if not (0 <= byte <= 255):
                 raise AssertionError(f"byte value out of range: expected 0 <= byte <= 255, got {byte}")
 
-    if dtype.is_complex:
-        if len(byte_list) != (num_bytes * 2):
-            raise AssertionError(
-                f"expected len(byte_list) == {num_bytes * 2} for complex dtype, got {len(byte_list)}"
-            )
-        check_bytes(byte_list)
-        real = ctype.from_buffer((ctypes.c_byte * num_bytes)(
-            *byte_list[:num_bytes])).value
-        imag = ctype.from_buffer((ctypes.c_byte * num_bytes)(
-            *byte_list[num_bytes:])).value
-        res = real + 1j * imag
-    else:
-        if len(byte_list) != num_bytes:
-            raise AssertionError(
-                f"expected len(byte_list) == {num_bytes}, got {len(byte_list)}"
-            )
-        check_bytes(byte_list)
-        res = ctype.from_buffer((ctypes.c_byte * num_bytes)(
-            *byte_list)).value
+    expected_len = num_bytes * 2 if dtype.is_complex else num_bytes
+    if len(byte_list) != expected_len:
+        raise AssertionError(
+            f"expected len(byte_list) == {expected_len}"
+            f"{' for complex dtype' if dtype.is_complex else ''}, got {len(byte_list)}"
+        )
+    check_bytes(byte_list)
 
-    return torch.tensor(res, device=device, dtype=dtype)
+    # Write bytes directly into storage to preserve exact bit patterns
+    # (e.g. NaN payloads, which are not preserved when round-tripping through
+    # Python float/complex, especially on architectures like RISC-V that
+    # canonicalize NaNs).
+    res = torch.empty((), dtype=dtype, device=device)
+    src = torch.tensor(byte_list, dtype=torch.uint8, device=device)
+    res.untyped_storage().copy_(src.untyped_storage())
+    return res
 
 
 def copy_func(f):
