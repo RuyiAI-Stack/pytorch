@@ -57,14 +57,14 @@ jobs:
             fi
 
             # need to get contents of the PR
-            git fetch origin pull/${{ github.event.pull_request.number }}/head:pr-head
-            git fetch origin main
+            git fetch --quiet origin pull/${{ github.event.pull_request.number }}/head:pr-head
+            git fetch --quiet origin main
             BASE=$(git merge-base pr-head origin/main)
             HEAD=pr-head
           else
             echo "Push to riscv"
             # 统一用 riscv 作为 baseline
-            git fetch origin main
+            git fetch --quiet origin main
             #git fetch origin riscv
 
             BASE=$(git merge-base ${{ github.sha }} origin/main) # The latest commit
@@ -93,9 +93,8 @@ jobs:
           cp $PATCH_NAME /home/jenkins/patch/
           cat /home/jenkins/patch/$PATCH_NAME
 
+          echo "PATCH_FILE=$PATCH_NAME" >> $GITHUB_ENV
+
       - name: Trigger Jenkins Job
         run: |
-          export BASE_COMMIT=${BASE_COMMIT}
-          export PATCH_FILE=$(pwd)/patch.diff
-
-          #bash /home/jenkins/scripts/jenkins-run.sh
+          bash /home/jenkins/scripts/jenkins-run.sh $BASE_COMMIT  $PATCH_FILE
