@@ -284,40 +284,40 @@ XPU_TEST = [
 
 RISCV64_BLOCKLIST = [
     # disable distributed related test
-    "inductor/test_distributed_patterns"
-    "fx/test_dce_pass"
-    "export/test_cpp_serdes"
-    "export/test_export"
-    "export/test_export_strict"
-    "export/test_export_training_ir_to_run_decomp"
-    "export/test_retraceability"
-    "export/test_serdes"
-    "export/test_strict_export_v2"
-    "test_public_bindings"
+    "inductor/test_distributed_patterns",
+    "fx/test_dce_pass",
+    "export/test_cpp_serdes",
+    "export/test_export",
+    "export/test_export_strict",
+    "export/test_export_training_ir_to_run_decomp",
+    "export/test_retraceability",
+    "export/test_serdes",
+    "export/test_strict_export_v2",
+    "test_public_bindings",
     # quantized engine NoQEngine is not supported
-    "test_torch"
-    "ao/sparsity/test_composability"
+    "test_torch",
+    "ao/sparsity/test_composability",
     # QNNPACK is not supported
-    "export/test_converter"
+    "export/test_converter",
     # record_contex_cpp is not support on non-linux non-x86_64 platforms
-    "torch_np/numpy_tests/core/test_numeric"
+    "torch_np/numpy_tests/core/test_numeric",
     # Failed to import torch.distributed.run: cannot import name 'Store' from 'torch.distributed'
-    "test_testing"
-    # TODO:L1 cache size = 0, need to fix
-    "inductor/test_cpu_select_algorithm"
-    "inductor/test_aot_inductor_arrayref"
-    "inductor/test_cpu_repro"
+    "test_testing",
+    "inductor/test_aot_inductor_arrayref",
+    "inductor/test_cpu_repro",
+    # TODO: mkldnn not available, shape guard failures on RISC-V
+    "inductor/test_cpu_select_algorithm",
     # TODO:scalar value not equal, need to fix
-    "profiler/test_profiler"
+    "profiler/test_profiler",
     # TODO precision
-    "test_binary_ufuncs"
-    "test_decomp"
+    "test_binary_ufuncs",
+    "test_decomp",
     # TODO no CUDA related module
-    "quantization/core/test_workflow_module"  # TestFakeQuantize.test_fq_module_per_channel
-    "quantization/core/test_workflow_ops"
-    "quantization/core/test_quantized_op"
+    "quantization/core/test_workflow_module",  # TestFakeQuantize.test_fq_module_per_channel
+    "quantization/core/test_workflow_ops",
+    "quantization/core/test_quantized_op",
     # z3-solver build fail
-    "test_proxy_tensor"
+    "test_proxy_tensor",
 ]
 
 
