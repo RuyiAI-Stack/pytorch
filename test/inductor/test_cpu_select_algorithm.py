@@ -1788,6 +1788,7 @@ class TestSelectAlgorithm(BaseTestSelectAlgorithm):
             vec_amx = VecAMX()
             self._check_amx_counter(vec_amx)
 
+    @unittest.skipIf(not torch._C._has_mkldnn, "MKLDNN is not enabled")
     @inductor_config.patch({"freezing": True, "cpp.enable_concat_linear": True})
     @patches
     @torch.no_grad
