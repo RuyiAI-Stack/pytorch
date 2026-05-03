@@ -294,8 +294,6 @@ RISCV64_BLOCKLIST = [
     "export/test_serdes",
     "export/test_strict_export_v2",
     "test_public_bindings",
-    # quantized engine NoQEngine is not supported
-    "test_torch",
     "ao/sparsity/test_composability",
     # QNNPACK is not supported
     "export/test_converter",
@@ -318,6 +316,15 @@ RISCV64_BLOCKLIST = [
     "quantization/core/test_quantized_op",
     # z3-solver build fail
     "test_proxy_tensor",
+    # too slow on riscv64
+    # 53013.55 s
+    "functorch/test_aotdispatch",
+    # 25069 s
+    "functorch/test_ops",
+    # 17528 s
+    "test_transformers",
+    # 10897 s
+    "functorch/test_vmap",
 ]
 
 
