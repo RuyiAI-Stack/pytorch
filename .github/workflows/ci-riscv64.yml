@@ -60,7 +60,7 @@ jobs:
             git fetch --quiet origin pull/${{ github.event.pull_request.number }}/head:pr-head
             git fetch --quiet origin main
             BASE=$(git merge-base pr-head origin/main)
-            HEAD=pr-head
+            HEAD=$(git rev-parse pr-head)
           else
             echo "Push to riscv"
             # 统一用 riscv 作为 baseline
