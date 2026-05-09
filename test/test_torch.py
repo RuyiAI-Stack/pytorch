@@ -44,7 +44,7 @@ from torch.testing._internal.common_utils import (  # type: ignore[attr-defined]
     wrapDeterministicFlagAPITest, DeterministicGuard, CudaSyncGuard,
     bytes_to_scalar, parametrize, noncontiguous_like,
     AlwaysWarnTypedStorageRemoval, TEST_WITH_TORCHDYNAMO, xfailIfTorchDynamo,
-    xfailIfS390X, set_warn_always_context, decorateIf, isRocmArchAnyOf,
+    xfailIfS390X, xfailIfRISCV, set_warn_always_context, decorateIf, isRocmArchAnyOf,
     IS_MACOS, HardwareClassification, instantiate_parametrized_tests,
     skipIfXpu,
 )
@@ -10502,14 +10502,21 @@ tensor([[[1.+1.j, 1.+1.j, 1.+1.j,  ..., 1.+1.j, 1.+1.j, 1.+1.j],
     # FIXME: port to a quantization test suite
     @unittest.skipIf(IS_MACOS, "https://github.com/pytorch/pytorch/issues/157245")
     @xfailIfS390X
+    @xfailIfRISCV
     def test_qengine(self):
         qengines = torch.backends.quantized.supported_engines
+        if not qengines:
+            self.skipTest("No quantized engines supported on this platform")
         original_qe = torch.backends.quantized.engine
         for qe in qengines:
             torch.backends.quantized.engine = qe
             if torch.backends.quantized.engine != qe:
                 raise AssertionError(f"qengine not set successfully: expected {qe}, got {torch.backends.quantized.engine}")
-        torch.backends.quantized.engine = original_qe
+        # On platforms where no qengine is compiled in as the default (e.g. RISC-V),
+        # the initial engine reads as "none" (NoQEngine), which is not a valid value
+        # to pass back to _set_qengine. Only restore if it was a real engine.
+        if original_qe != "none":
+            torch.backends.quantized.engine = original_qe
 
     @skipIfXpu(msg="https://github.com/intel/torch-xpu-ops/issues/5309")
     def test_terminate_handler_on_crash(self):
