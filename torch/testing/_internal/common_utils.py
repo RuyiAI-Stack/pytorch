@@ -1619,6 +1619,7 @@ IS_AVX512_VNNI_SUPPORTED = torch.cpu.get_capabilities().get("avx512_vnni", False
 IS_CPU_EXT_SVE_SUPPORTED = torch.cpu.get_capabilities().get("sve", False)
 IS_CPU_CAPABILITY_SVE = torch._C._get_cpu_capability() in ("SVE128", "SVE256")
 IS_CPU_CAPABILITY_SVE256 = torch._C._get_cpu_capability() == "SVE256"
+IS_RISCV = platform.machine() in ('riscv64', 'riscv32')
 
 if IS_WINDOWS:
     @contextmanager
@@ -2437,6 +2438,9 @@ def runOnRocmArch(arch: tuple[str, ...]):
 
 def xfailIfS390X(func):
     return unittest.expectedFailure(func) if IS_S390X else func
+
+def xfailIfRISCV(func):
+    return unittest.expectedFailure(func) if IS_RISCV else func
 
 def xfailIf(condition):
     def wrapper(func):
