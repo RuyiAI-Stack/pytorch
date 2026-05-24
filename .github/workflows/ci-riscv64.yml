@@ -1,13 +1,14 @@
 # Note: this runner is provided externally, so we minimize its access to
 # secrets.
+
+name: CI (riscv64)
+
 on:
   push:
     branches: [riscv]
 
   pull_request_target:
     types: [opened, synchronize, reopened]
-
-name: CI (riscv64)
 
 permissions:
   contents: read
@@ -23,9 +24,17 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
-    name: Build and test
+  core-ci:
+    name: pytorch-riscv64-core-ci
     runs-on: [self-hosted, linux, amd64]
+
+    outputs:
+      base_commit: ${{ steps.meta.outputs.base_commit }}
+      head_commit: ${{ steps.meta.outputs.head_commit }}
+      patch_file: ${{ steps.patch.outputs.patch_file }}
+      ci_result_base_url: ${{ steps.jenkins.outputs.ci_result_base_url }}
+      ci_stat_url: ${{ steps.jenkins.outputs.ci_stat_url }}
+
     # This is in its own separate environment.
     environment: riscv64
     steps:
@@ -38,7 +47,7 @@ jobs:
       - name: Extract PR info
         run: |
           echo "BASE_SHA=${{ github.event.pull_request.base.sha }}" >> $GITHUB_ENV
-          echo "HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> GITHUB_ENV
+          echo "HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> $GITHUB_ENV
 
       - name: Diff base and head
         run: |
@@ -50,7 +59,7 @@ jobs:
             echo "Base ref: $BASE_REF"
             echo "Head ref: $HEAD_REF"
 
-            # 强约束: PR 必须基于 riscv
+            # must based on riscv
             if [ "$BASE_REF" != "riscv" ]; then
               echo "ERROR: PR must target 'riscv' branch, got '$BASE_REF'"
               exit 1
@@ -97,4 +106,60 @@ jobs:
 
       - name: Trigger Jenkins Job
         run: |
-          bash /home/jenkins/scripts/jenkins-run.sh $BASE_COMMIT  $PATCH_FILE
+          set -euo pipefail
+
+          BASE=${{ steps.meta.outputs.base_commit }}
+          PATCH=${{ steps.patch.outputs.patch_file }}
+
+          bash /home/jenkins/scripts/jenkins-run.sh $BASE_COMMIT  $PATCH_FILE | tee jenkins.log
+
+          CI_STAT_URL=$(grep -oE 'https://[^ ]+/pytorch-ci-stat\.json' jenkins.log | tail -n1)
+
+          if [[ -z "$CI_STAT_URL" ]]; then
+            echo "ERROR: cannot find pytorch-ci-stat.json URL from Jenkins log"
+            exit 1
+          fi
+
+          CI_RESULT_BASE_URL="${CI_STAT_URL%/pytorch-ci-stat.json}"
+
+          echo "ci_stat_url=$CI_STAT_URL" >> "$GITHUB_OUTPUT"
+          echo "ci_result_base_url=$CI_RESULT_BASE_URL" >> "$GITHUB_OUTPUT"
+
+          echo "CI_STAT_URL=$CI_STAT_URL"
+          echo "CI_RESULT_BASE_URL=$CI_RESULT_BASE_URL"
+
+full-ci:
+  name: pytorch-riscv64-full-ci
+  runs-on: [self-hosted, linux, amd64]
+  needs: core-ci
+  if: always()
+  continue-on-error: true
+
+  steps:
+    - name: Query existing full test result
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        BASE_URL="${{ needs.core-ci.outputs.ci_result_base_url }}"
+        STAT_URL="${BASE_URL}/pytorch-ci-stat.json"
+
+        echo "STAT_URL=$STAT_URL"
+
+         curl -fsSL "$STAT_URL" -o pytorch-ci-stat.json
+
+        echo "==== FULL TEST STAT ===="
+        cat pytorch-ci-stat.json
+        echo
+
+        FAILED=$(jq '.failed | length' pytorch-ci-stat.json)
+
+        if [[ "$FAILED" != "0" ]]; then
+          echo "==== FULL TEST FAILED ===="
+          echo "failed cases: $FAILED"
+          exit 1
+        fi
+
+        echo "==== FULL TEST PASSED ===="
+        echo "full test no failures"
+
