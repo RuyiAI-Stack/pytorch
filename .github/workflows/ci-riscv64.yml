@@ -50,6 +50,7 @@ jobs:
           echo "HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> $GITHUB_ENV
 
       - name: Diff base and head
+        id: meta
         run: |
           if [[ "${{ github.event_name }}" = "pull_request" || "${{ github.event_name }}" == "pull_request_target" ]]; then
             echo "Push PR build"
@@ -84,10 +85,14 @@ jobs:
           echo "BASE_COMMIT=$BASE" >> $GITHUB_ENV
           echo "HEAD_COMMIT=$HEAD" >> $GITHUB_ENV
 
+          echo "base_commit=$BASE" >> "$GITHUB_OUTPUT"
+          echo "head_commit=$HEAD" >> "$GITHUB_OUTPUT"
+
           echo "Base: $BASE"
           echo "Head: $HEAD"
 
       - name: Generate patch
+        id: patch
         run: |
           echo "Generating patch..."
 
@@ -102,16 +107,18 @@ jobs:
           cp $PATCH_NAME /home/jenkins/patch/
           cat /home/jenkins/patch/$PATCH_NAME
 
-          echo "PATCH_FILE=$PATCH_NAME" >> $GITHUB_ENV
+          echo "PATCH_FILE=$PATCH_NAME" >> "$GITHUB_ENV"
+          echo "patch_file=$PATCH_NAME" >> "$GITHUB_OUTPUT"
 
       - name: Trigger Jenkins Job
+        id: jenkins
         run: |
           set -euo pipefail
 
           BASE=${{ steps.meta.outputs.base_commit }}
           PATCH=${{ steps.patch.outputs.patch_file }}
 
-          bash /home/jenkins/scripts/jenkins-run.sh $BASE_COMMIT  $PATCH_FILE | tee jenkins.log
+          bash /home/jenkins/scripts/jenkins-run.sh $BASE  $PATCH | tee jenkins.log
 
           CI_STAT_URL=$(grep -oE 'https://[^ ]+/pytorch-ci-stat\.json' jenkins.log | tail -n1)
 
@@ -128,38 +135,38 @@ jobs:
           echo "CI_STAT_URL=$CI_STAT_URL"
           echo "CI_RESULT_BASE_URL=$CI_RESULT_BASE_URL"
 
-full-ci:
-  name: pytorch-riscv64-full-ci
-  runs-on: [self-hosted, linux, amd64]
-  needs: core-ci
-  if: always()
-  continue-on-error: true
+  full-ci:
+    name: pytorch-riscv64-full-ci
+    runs-on: [self-hosted, linux, amd64]
+    needs: core-ci
+    if: always()
+    continue-on-error: true
 
-  steps:
-    - name: Query existing full test result
-      shell: bash
-      run: |
-        set -euo pipefail
+    steps:
+      - name: Query existing full test result
+        shell: bash
+        run: |
+          set -euo pipefail
 
-        BASE_URL="${{ needs.core-ci.outputs.ci_result_base_url }}"
-        STAT_URL="${BASE_URL}/pytorch-ci-stat.json"
+          BASE_URL="${{ needs.core-ci.outputs.ci_result_base_url }}"
+          STAT_URL="${BASE_URL}/pytorch-ci-stat.json"
 
-        echo "STAT_URL=$STAT_URL"
+          echo "STAT_URL=$STAT_URL"
 
-         curl -fsSL "$STAT_URL" -o pytorch-ci-stat.json
+          curl -fsSL "$STAT_URL" -o pytorch-ci-stat.json
 
-        echo "==== FULL TEST STAT ===="
-        cat pytorch-ci-stat.json
-        echo
+          echo "==== FULL TEST STAT ===="
+          cat pytorch-ci-stat.json
+          echo
 
-        FAILED=$(jq '.failed | length' pytorch-ci-stat.json)
+          FAILED=$(jq '.failed | length' pytorch-ci-stat.json)
 
-        if [[ "$FAILED" != "0" ]]; then
-          echo "==== FULL TEST FAILED ===="
-          echo "failed cases: $FAILED"
-          exit 1
-        fi
+          if [[ "$FAILED" != "0" ]]; then
+            echo "==== FULL TEST FAILED ===="
+            echo "failed cases: $FAILED"
+            exit 1
+          fi
 
-        echo "==== FULL TEST PASSED ===="
-        echo "full test no failures"
+          echo "==== FULL TEST PASSED ===="
+          echo "full test no failures"
 
