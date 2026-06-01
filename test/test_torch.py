@@ -44,7 +44,7 @@ from torch.testing._internal.common_utils import (  # type: ignore[attr-defined]
     wrapDeterministicFlagAPITest, DeterministicGuard, CudaSyncGuard,
     bytes_to_scalar, parametrize, skipIfMPS, noncontiguous_like,
     AlwaysWarnTypedStorageRemoval, TEST_WITH_TORCHDYNAMO, xfailIfTorchDynamo,
-    xfailIfS390X, xfailIfRISCV, set_warn_always_context, decorateIf, isRocmArchAnyOf)
+    xfailIfS390X, set_warn_always_context, decorateIf, isRocmArchAnyOf)
 from multiprocessing.reduction import ForkingPickler
 from torch.testing._internal.common_device_type import (
     expectedFailureMeta,
@@ -9524,7 +9524,6 @@ tensor([[[1.+1.j, 1.+1.j, 1.+1.j,  ..., 1.+1.j, 1.+1.j, 1.+1.j],
 
     # FIXME: port to a quantization test suite
     @xfailIfS390X
-    @xfailIfRISCV
     def test_qengine(self):
         qengines = torch.backends.quantized.supported_engines
         if not qengines:
