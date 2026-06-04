@@ -7,32 +7,25 @@
 namespace at::native::xnnpack {
 
 bool use_channel_shuffle(
-    const Tensor& input,
-    const int64_t groups) {
-  using namespace internal;
-
-  // Here are the list of conditions required for this code path to be taken:
-  // * Input must be 4D CPU float tensor with no gradients and
-  //   and all dimensions must be positive.
-  // * The number of groups must be larger than 1 and
-  //   the number of channels must be divisible by the number of groups.
-  return xnnpack::available() &&
-      // Input
-      (4 == input.dim()) &&
-      (input.device().is_cpu()) &&
-      (kFloat == input.scalar_type()) &&
-      (input.size(Layout::Activation4D::batch) >= 0) &&
-      (input.size(Layout::Activation4D::channels) > 0) &&
-      (input.size(Layout::Activation4D::height) > 0) &&
-      (input.size(Layout::Activation4D::width) > 0) &&
-      !input.requires_grad() &&
-      // Groups
-      groups > 1 &&
-      (0 == input.size(Layout::Activation4D::channels) % groups) &&
-      true;
+    const Tensor& /*input*/,
+    const int64_t /*groups*/) {
+  // xnn_*_channel_shuffle_nc_x32 was removed from XNNPACK; fall back to
+  // the generic implementation.
+  return false;
 }
 
 Tensor channel_shuffle(
+    const Tensor& input,
+    const int64_t groups) {
+  TORCH_CHECK(false, "XNNPACK channel_shuffle is no longer supported.");
+  (void)input;
+  (void)groups;
+  return input;
+}
+
+#if 0
+namespace {
+Tensor channel_shuffle_xnnpack_disabled(
     const Tensor& input,
     const int64_t groups) {
   using namespace internal;
@@ -107,6 +100,8 @@ Tensor channel_shuffle(
 
   return output_padded_contig_nhwc.contiguous(input.suggest_memory_format());
 }
+} // namespace
+#endif
 
 } // namespace at::native::xnnpack
 
