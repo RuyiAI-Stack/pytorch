@@ -118,13 +118,17 @@ jobs:
           BASE=${{ steps.meta.outputs.base_commit }}
           PATCH=${{ steps.patch.outputs.patch_file }}
 
+          set +e
           bash /home/jenkins/scripts/jenkins-run.sh $BASE  $PATCH | tee jenkins.log
+          JENKINS_RC=${PIPESTATUS[0]}
+          set -e
 
-          CI_STAT_URL=$(grep -oE 'https://[^ ]+/pytorch-ci-stat\.json' jenkins.log | tail -n1)
+          CI_STAT_URL=$(grep -oE 'https://[^ ]+/pytorch-ci-stat\.json' jenkins.log | tail -n1 || true)
 
           if [[ -z "$CI_STAT_URL" ]]; then
             echo "ERROR: cannot find pytorch-ci-stat.json URL from Jenkins log"
-            exit 1
+            echo "jenkins-run.sh rc=$JENKINS_RC"
+            exit "$JENKINS_RC"
           fi
 
           CI_RESULT_BASE_URL="${CI_STAT_URL%/pytorch-ci-stat.json}"
@@ -134,6 +138,9 @@ jobs:
 
           echo "CI_STAT_URL=$CI_STAT_URL"
           echo "CI_RESULT_BASE_URL=$CI_RESULT_BASE_URL"
+
+          # judge core ci fail or success
+          exit "$JENKINS_RC"
 
   full-ci:
     name: pytorch-riscv64-full-ci
