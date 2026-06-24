@@ -88,7 +88,7 @@ else()
 
   if(@USE_XNNPACK@)
     append_torchlib_if_found(XNNPACK)
-    append_torchlib_if_found(microkernels-prod)
+    append_torchlib_if_found(xnnpack-microkernels-prod)
   endif()
 
   if(@USE_KLEIDIAI@)

@@ -94,7 +94,6 @@ ContextLinear create(
       output_min,                                                     // output_min
       output_max,                                                     // output_max
       0u,                                                             // flags
-      nullptr,                                                        // xnn_caches_t
       nullptr,                                                        // xnn_weights_cache_t
       &linear_op);                                                    // operator
 

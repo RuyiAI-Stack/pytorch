@@ -61,7 +61,9 @@ const ActivityTypeMap kMtiaTypes{
     {libkineto::ActivityType::MTIA_CCP_EVENTS,       "MTIA_CCP_EVENTS"},
     {libkineto::ActivityType::MTIA_RUNTIME,          "MTIA_RUNTIME"},
     {libkineto::ActivityType::MTIA_INSIGHT,          "MTIA_INSIGHT"},
+#ifdef KINETO_HAS_MTIA_COUNTERS
     {libkineto::ActivityType::MTIA_COUNTERS,         "MTIA_COUNTERS"},
+#endif
 };
 
 const ActivityTypeMap kHpuTypes{
@@ -359,7 +361,9 @@ void prepareTrace(
       }
       if (config.custom_profiler_config.find("disable_counter_events") ==
           std::string::npos) {
+#ifdef KINETO_HAS_MTIA_COUNTERS
         k_activities.insert(libkineto::ActivityType::MTIA_COUNTERS);
+#endif
       } else {
         LOG(INFO) << "Disabling MTIA counter events";
       }
@@ -497,7 +501,9 @@ c10::DeviceType deviceTypeFromActivity(libkineto::ActivityType activity_type) {
     // TODO: T151322015
     case libkineto::ActivityType::MTIA_CCP_EVENTS:
     case libkineto::ActivityType::MTIA_INSIGHT:
+#ifdef KINETO_HAS_MTIA_COUNTERS
     case libkineto::ActivityType::MTIA_COUNTERS:
+#endif
       return device_type_privateuse1_or(c10::DeviceType::MTIA);
     case libkineto::ActivityType::HPU_OP:
       return c10::DeviceType::HPU;
@@ -552,7 +558,7 @@ void profilerStep() {
 }
 
 bool isKinetoStopped() {
-#ifdef USE_KINETO
+#if defined(USE_KINETO) && defined(KINETO_HAS_ISSTOPPED)
   if (libkineto::api().isProfilerInitialized()) {
     return libkineto::api().activityProfiler().isStopped();
   }
