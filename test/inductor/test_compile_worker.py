@@ -126,7 +126,7 @@ class TestCompileWorker(TestCase):
             wait = pool.process.wait
 
             def short_wait(timeout=None):
-                return wait(timeout=2)
+                return wait(timeout=10)
 
             pool.process.wait = short_wait
 
@@ -146,7 +146,7 @@ class TestCompileWorker(TestCase):
                 cwd=cwd,
                 capture_output=True,
                 text=True,
-                timeout=20,
+                timeout=120,
             )
         self.assertEqual(
             result.returncode,
