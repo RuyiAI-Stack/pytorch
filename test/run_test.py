@@ -336,6 +336,10 @@ RISCV64_BLOCKLIST = [
     "test_transformers",
     # 10897 s
     "functorch/test_vmap",
+    # looping on k1, see https://github.com/RuyiAI-Stack/pytorch/issues/37
+    "test_dataloader",
+    # network issue on k1, see https://github.com/RuyiAI-Stack/pytorch/issues/39
+    "test_hub",
 ]
 
 
