@@ -6510,12 +6510,73 @@ def install_cpp_extension(extension_root):
         sys.path.insert(0, mod_install_dir)
 
 
+# When torch/include on the build worker is stale from an install predating
+# upstream PR #189284, extensions compiled via load_inline see the old 9-arg
+# torch::autograd::_wrap_outputs declaration in custom_function.h and end up
+# with an undefined reference to that symbol at dlopen time. This stub, when
+# prepended to the extension's cpp_sources, provides a local definition of
+# the 9-arg overload that forwards to the 10-arg version already exported by
+# libtorch_cpu.so. Included unconditionally: on a fresh header, the 10-arg
+# call site wins overload resolution and this definition is unreferenced.
+_WRAP_OUTPUTS_ABI_SHIM = r"""
+namespace torch { namespace autograd {
+
+// Forward-declare the post-#189284 10-arg overload. libtorch_cpu.so always
+// exports this symbol, but pre-#189284 custom_function.h only declares the
+// 9-arg overload, so we redeclare it here to be able to call into it.
+extern std::vector<std::optional<Variable>> _wrap_outputs(
+    const variable_list& input_vars,
+    const std::unordered_set<at::TensorImpl*>& non_differentiable,
+    const std::unordered_set<at::TensorImpl*>& dirty_inputs,
+    const at::ArrayRef<std::optional<Variable>> raw_outputs,
+    const c10::intrusive_ptr<Node>& cdata,
+    const _jvp_fn_t& jvp_user_function,
+    const std::unordered_set<at::TensorImpl*>& to_save_if_setup_context,
+    const _view_as_self_fn_t& view_as_self_fn,
+    bool pure_view,
+    c10::intrusive_ptr<Node>& attached_node);
+
+// Local definition of the pre-#189284 9-arg overload. The attached_node
+// out-param feeds node-creation hooks; discarding it here is safe because a
+// caller stuck on this ABI predates that feature and never fires hooks.
+inline std::vector<std::optional<Variable>> _wrap_outputs(
+    const variable_list& input_vars,
+    const std::unordered_set<at::TensorImpl*>& non_differentiable,
+    const std::unordered_set<at::TensorImpl*>& dirty_inputs,
+    const at::ArrayRef<std::optional<Variable>> raw_outputs,
+    const c10::intrusive_ptr<Node>& cdata,
+    const _jvp_fn_t& jvp_user_function,
+    const std::unordered_set<at::TensorImpl*>& to_save_if_setup_context,
+    const _view_as_self_fn_t& view_as_self_fn,
+    bool pure_view) {
+  c10::intrusive_ptr<Node> attached_node;
+  return _wrap_outputs(
+      input_vars, non_differentiable, dirty_inputs, raw_outputs, cdata,
+      jvp_user_function, to_save_if_setup_context, view_as_self_fn, pure_view,
+      attached_node);
+}
+
+}} // namespace torch::autograd
+"""
+
+
+def _inject_wrap_outputs_shim(kwargs):
+    sources = kwargs.get("cpp_sources")
+    if sources is None:
+        return
+    if isinstance(sources, str):
+        kwargs["cpp_sources"] = _WRAP_OUTPUTS_ABI_SHIM + sources
+    else:
+        kwargs["cpp_sources"] = [_WRAP_OUTPUTS_ABI_SHIM, *sources]
+
+
 # Decorator to provide a helper to load inline extensions to a temp directory
 def scoped_load_inline(func):
 
     @wraps(func)
     def wrapper(*args, **kwargs):
         def load_inline(*args, **kwargs):
+            _inject_wrap_outputs_shim(kwargs)
             if IS_WINDOWS:
                 # TODO(xmfan): even using TemporaryDirectoryName will result in permission error
                 return cpp_extension.load_inline(*args, **kwargs)
