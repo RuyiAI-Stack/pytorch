@@ -596,6 +596,61 @@ optional_variable_list _wrap_outputs(
       attached_node);
 }
 
+// Backward-compat 9-arg overloads (no attached_node out-param). Preserve the
+// pre-#189284 ABI so extensions compiled against a stale custom_function.h
+// still resolve _wrap_outputs at dlopen time. The dropped attached_node is
+// only needed to fire node-creation hooks; forwarding here silently discards
+// it, which is safe because callers that stopped at 9 args predate the hook.
+// NOLINTNEXTLINE(misc-use-internal-linkage)
+optional_variable_list _wrap_outputs(
+    const variable_list& input_vars,
+    const std::unordered_set<at::TensorImpl*>& non_differentiable,
+    const std::unordered_set<at::TensorImpl*>& dirty_inputs,
+    const at::ArrayRef<std::optional<Variable>> raw_outputs,
+    const c10::intrusive_ptr<Node>& cdata,
+    const _jvp_fn_t& jvp_user_function,
+    const std::unordered_set<at::TensorImpl*>& to_save_if_setup_context,
+    const _view_as_self_fn_t& view_as_self_fn,
+    bool pure_view) {
+  c10::intrusive_ptr<Node> attached_node;
+  return _wrap_outputs_impl(
+      input_vars,
+      non_differentiable,
+      dirty_inputs,
+      raw_outputs,
+      cdata,
+      jvp_user_function,
+      to_save_if_setup_context,
+      view_as_self_fn,
+      pure_view,
+      attached_node);
+}
+
+// NOLINTNEXTLINE(misc-use-internal-linkage)
+optional_variable_list _wrap_outputs(
+    at::ArrayRef<const Variable*> input_vars,
+    const std::unordered_set<at::TensorImpl*>& non_differentiable,
+    const std::unordered_set<at::TensorImpl*>& dirty_inputs,
+    const at::ArrayRef<std::optional<Variable>> raw_outputs,
+    const c10::intrusive_ptr<Node>& cdata,
+    const _jvp_fn_t& jvp_user_function,
+    const std::unordered_set<at::TensorImpl*>& to_save_if_setup_context,
+    const _view_as_self_fn_t& view_as_self_fn,
+    bool pure_view) {
+  c10::intrusive_ptr<Node> attached_node;
+  return _wrap_outputs_impl(
+      input_vars,
+      non_differentiable,
+      dirty_inputs,
+      raw_outputs,
+      cdata,
+      jvp_user_function,
+      to_save_if_setup_context,
+      view_as_self_fn,
+      pure_view,
+      attached_node);
+}
+
 void check_variable_result(
     const at::TensorBase& original,
     const at::TensorBase& result,

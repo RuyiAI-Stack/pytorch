@@ -45,6 +45,32 @@ TORCH_API std::vector<std::optional<Variable>> _wrap_outputs(
     bool pure_view,
     c10::intrusive_ptr<Node>& attached_node);
 
+// Backward-compat overloads without the attached_node out-param. These match
+// the pre-#189284 ABI and let C++ extensions built against a stale header
+// still resolve _wrap_outputs at load time. Prefer the 10-arg versions above
+// for any new caller that needs to fire node creation hooks.
+TORCH_API std::vector<std::optional<Variable>> _wrap_outputs(
+    const variable_list& input_vars,
+    const std::unordered_set<at::TensorImpl*>& non_differentiable,
+    const std::unordered_set<at::TensorImpl*>& dirty_inputs,
+    const at::ArrayRef<std::optional<Variable>> raw_outputs,
+    const c10::intrusive_ptr<Node>& cdata,
+    const _jvp_fn_t& jvp_user_function,
+    const std::unordered_set<at::TensorImpl*>& to_save_if_setup_context,
+    const _view_as_self_fn_t& view_as_self_fn,
+    bool pure_view);
+
+TORCH_API std::vector<std::optional<Variable>> _wrap_outputs(
+    at::ArrayRef<const Variable*> input_vars,
+    const std::unordered_set<at::TensorImpl*>& non_differentiable,
+    const std::unordered_set<at::TensorImpl*>& dirty_inputs,
+    const at::ArrayRef<std::optional<Variable>> raw_outputs,
+    const c10::intrusive_ptr<Node>& cdata,
+    const _jvp_fn_t& jvp_user_function,
+    const std::unordered_set<at::TensorImpl*>& to_save_if_setup_context,
+    const _view_as_self_fn_t& view_as_self_fn,
+    bool pure_view);
+
 TORCH_API void check_variable_result(
     const at::TensorBase& original,
     const at::TensorBase& result,
