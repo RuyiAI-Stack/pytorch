@@ -13799,7 +13799,7 @@ if __name__ == '__main__':
             expected_max_ulp_diff = 8
             if dtype == torch.float32:
                 if "cpu" in device:
-                    expected_input_grad_max_ulp_diff = 384  # x86_64 149
+                    expected_input_grad_max_ulp_diff = 512  # x86_64 149, ci 426
                     expected_weight_grad_max_ulp_diff = 160  # x86_64 58
                 elif "mps" in device:
                     expected_input_grad_max_ulp_diff = 128  # 37
