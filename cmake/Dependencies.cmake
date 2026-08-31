@@ -1653,6 +1653,7 @@ if(NOT INTERN_BUILD_MOBILE)
   add_definitions(-DMINIZ_DISABLE_ZIP_READER_CRC32_CHECKS)
 
   find_package(ZVECTOR) # s390x simd support
+  find_package(RVV) # riscv vector simd support
 endif()
 
 #

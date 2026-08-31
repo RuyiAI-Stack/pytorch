@@ -62,6 +62,10 @@ static CPUCapability compute_cpu_capability() {
         return CPUCapability::DEFAULT;
       }
     }
+#elif defined(HAVE_RVV_CPU_DEFINITION)
+    if (envar == "rvv") {
+      return CPUCapability::RVV;
+    }
 #else
 #ifdef HAVE_AVX512_CPU_DEFINITION
     if (envar == "avx512") {
@@ -116,6 +120,11 @@ static CPUCapability compute_cpu_capability() {
       return CPUCapability::SVE128;
   }
 #endif
+#if defined(__linux__) && defined(HAVE_RVV_CPU_DEFINITION)
+  if (cpuinfo_initialize() && cpuinfo_has_riscv_v()) {
+    return CPUCapability::RVV;
+  }
+#endif
 #ifdef HAVE_VSX_CPU_DEFINITION
   return CPUCapability::VSX;
 #else
@@ -146,6 +155,9 @@ DispatchResult DispatchStubImpl::try_get_call_ptr(
 #ifdef HAVE_SVE_CPU_DEFINITION
   , void *SVE128
   , void *SVE256
+#endif
+#ifdef HAVE_RVV_CPU_DEFINITION
+  , void *RVV
 #endif
 ) {
   constexpr auto supported_devices = std::to_array<c10::DeviceType>(
@@ -185,6 +197,9 @@ DispatchResult DispatchStubImpl::try_get_call_ptr(
 #ifdef HAVE_SVE_CPU_DEFINITION
           , SVE128
           , SVE256
+#endif
+#ifdef HAVE_RVV_CPU_DEFINITION
+          , RVV
 #endif
         );
         if (!std::holds_alternative<ErrorType>(result)) {
@@ -243,6 +258,9 @@ void* DispatchStubImpl::get_call_ptr(
   , void *SVE128
   , void *SVE256
 #endif
+#ifdef HAVE_RVV_CPU_DEFINITION
+  , void *RVV
+#endif
 ) {
 
   auto result = try_get_call_ptr(
@@ -269,6 +287,10 @@ void* DispatchStubImpl::get_call_ptr(
       SVE128
       ,
       SVE256
+#endif
+#ifdef HAVE_RVV_CPU_DEFINITION
+      ,
+      RVV
 #endif
   );
   if (std::holds_alternative<ErrorType>(result)) {
@@ -303,6 +325,9 @@ DispatchResult DispatchStubImpl::try_choose_cpu_impl(
 #ifdef HAVE_SVE_CPU_DEFINITION
     , void *SVE128
     , void *SVE256
+#endif
+#ifdef HAVE_RVV_CPU_DEFINITION
+    , void *RVV
 #endif
   ){
 
@@ -350,6 +375,11 @@ DispatchResult DispatchStubImpl::try_choose_cpu_impl(
     return DispatchResult(SVE256);
   }
 #endif
+#ifdef HAVE_RVV_CPU_DEFINITION
+  if (capability >= static_cast<int>(CPUCapability::RVV)) {
+    return RVV != nullptr ? DispatchResult(RVV) : ErrorType::MissingDeviceKernel;
+  }
+#endif
   return DEFAULT != nullptr ? DispatchResult(DEFAULT) : ErrorType::MissingDeviceKernel;
 }
 
@@ -370,6 +400,9 @@ void* DispatchStubImpl::choose_cpu_impl(
 #ifdef HAVE_SVE_CPU_DEFINITION
   , void *SVE128
   , void *SVE256
+#endif
+#ifdef HAVE_RVV_CPU_DEFINITION
+  , void *RVV
 #endif
 ) {
   auto capability = static_cast<int>(get_cpu_capability());
@@ -420,6 +453,12 @@ void* DispatchStubImpl::choose_cpu_impl(
       return DEFAULT;
     }
     return SVE256;
+  }
+#endif
+#ifdef HAVE_RVV_CPU_DEFINITION
+  if (capability >= static_cast<int>(CPUCapability::RVV)) {
+    TORCH_INTERNAL_ASSERT(RVV, "DispatchStub: missing RVV kernel");
+    return RVV;
   }
 #endif
   TORCH_INTERNAL_ASSERT(DEFAULT, "DispatchStub: missing default kernel");
