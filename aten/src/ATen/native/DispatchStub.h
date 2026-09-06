@@ -67,6 +67,8 @@ enum class CPUCapability {
 #elif defined(HAVE_SVE_CPU_DEFINITION)
   SVE256 = 1,
   SVE128 = 2,
+#elif defined(HAVE_RVV_CPU_DEFINITION)
+  RVV = 1,
 #else
   AVX2 = 1,
   AVX512 = 2,
@@ -120,6 +122,9 @@ struct TORCH_API DispatchStubImpl {
       , void *SVE128
       , void *SVE256
 #endif
+#ifdef HAVE_RVV_CPU_DEFINITION
+      , void *RVV
+#endif
   );
 
   // Analogous to try_get_call_ptr(), but it will return the ErrorType and not
@@ -142,6 +147,9 @@ struct TORCH_API DispatchStubImpl {
     , void *SVE128
     , void *SVE256
 #endif
+#ifdef HAVE_RVV_CPU_DEFINITION
+    , void *RVV
+#endif
   );
 
 
@@ -163,6 +171,9 @@ struct TORCH_API DispatchStubImpl {
 #ifdef HAVE_SVE_CPU_DEFINITION
       , void *SVE128
       , void *SVE256
+#endif
+#ifdef HAVE_RVV_CPU_DEFINITION
+      , void *RVV
 #endif
   );
 
@@ -188,6 +199,9 @@ struct TORCH_API DispatchStubImpl {
 #ifdef HAVE_SVE_CPU_DEFINITION
     , void *SVE128
     , void *SVE256
+#endif
+#ifdef HAVE_RVV_CPU_DEFINITION
+    , void *RVV
 #endif
   );
 
@@ -246,6 +260,9 @@ private:
 #ifdef HAVE_SVE_CPU_DEFINITION
       , reinterpret_cast<void*>(SVE128)
       , reinterpret_cast<void*>(SVE256)
+#endif
+#ifdef HAVE_RVV_CPU_DEFINITION
+      , reinterpret_cast<void*>(RVV)
 #endif
       )
     );
@@ -309,6 +326,9 @@ public:
       , reinterpret_cast<void*>(SVE128)
       , reinterpret_cast<void*>(SVE256)
 #endif
+#ifdef HAVE_RVV_CPU_DEFINITION
+      , reinterpret_cast<void*>(RVV)
+#endif
       );
     if (std::holds_alternative<ErrorType>(result)){
       return false;
@@ -332,6 +352,9 @@ public:
 #ifdef HAVE_SVE_CPU_DEFINITION
   static TORCH_API FnPtr SVE128;
   static TORCH_API FnPtr SVE256;
+#endif
+#ifdef HAVE_RVV_CPU_DEFINITION
+  static TORCH_API FnPtr RVV;
 #endif
 private:
   DispatchStubImpl impl;
@@ -442,6 +465,12 @@ struct RegisterPRIVATEUSE1Dispatch {
 #define REGISTER_SVE256_DISPATCH(name, fn)
 #endif
 
+#ifdef HAVE_RVV_CPU_DEFINITION
+#define REGISTER_RVV_DISPATCH(name, fn) REGISTER_ARCH_DISPATCH(name, RVV, fn)
+#else
+#define REGISTER_RVV_DISPATCH(name, fn)
+#endif
+
 // Macro to register the same kernel for all CPU arch types. This is useful
 // if a kernel does not benefit from being recompiled across different arch types.
 #define REGISTER_ALL_CPU_DISPATCH(name, fn)                                    \
@@ -451,7 +480,8 @@ struct RegisterPRIVATEUSE1Dispatch {
   REGISTER_VSX_DISPATCH(name, fn)                                              \
   REGISTER_ZVECTOR_DISPATCH(name, fn)                                          \
   REGISTER_SVE128_DISPATCH(name, fn)                                           \
-  REGISTER_SVE256_DISPATCH(name, fn)
+  REGISTER_SVE256_DISPATCH(name, fn)                                           \
+  REGISTER_RVV_DISPATCH(name, fn)
 
 #define REGISTER_NO_CPU_DISPATCH(name)                                         \
   REGISTER_ALL_CPU_DISPATCH(name, nullptr)
