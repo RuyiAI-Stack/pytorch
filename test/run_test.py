@@ -343,6 +343,8 @@ RISCV64_BLOCKLIST = [
     "test_transformers",
     # 10897 s
     "functorch/test_vmap",
+    # too slow on riscv64, see: https://github.com/RuyiAI-Stack/pytorch/issues/49
+    "inductor/test_torchinductor_opinfo",
 ]
 
 
