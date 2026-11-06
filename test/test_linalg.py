@@ -7527,6 +7527,47 @@ class TestLinalg(TestCase):
         with self.assertRaisesRegex(RuntimeError, "must be batches of square matrices"):
             torch.ops.aten.matrix_exp_backward(non_square, grad_non_square)
 
+    @dtypes(torch.float, torch.double, torch.complex64, torch.complex128)
+    @parametrize("batch_shape", [(), (1,), (4,), (2, 2), (16,)])
+    @parametrize("matrix_size, index", [(1, 0), (2, 0), (2, 1)])
+    def test_linalg_matrix_exp_nan_propagation(self, device, dtype, batch_shape, matrix_size, index):
+        x = torch.eye(matrix_size, device=device, dtype=dtype).expand(
+            *batch_shape, matrix_size, matrix_size
+        ).clone()
+        x[..., index, index] = float("nan")
+        actual = torch.linalg.matrix_exp(x)
+        self.assertEqual(actual.shape, x.shape)
+        self.assertEqual(actual.dtype, dtype)
+        has_nan = actual.isnan().any(dim=-1).any(dim=-1)
+        expected = torch.ones(batch_shape, device=device, dtype=torch.bool)
+        self.assertEqual(has_nan, expected, exact_device=True)
+
+    @dtypes(torch.float, torch.double, torch.complex64, torch.complex128)
+    @parametrize("value", [float("nan"), float("inf"), -float("inf")])
+    @parametrize("nonfinite_index", [0, 1, 3])
+    @parametrize("matrix_size", [1, 2])
+    def test_linalg_matrix_exp_nonfinite(self, device, dtype, value, nonfinite_index, matrix_size):
+        diagonal = torch.tensor([1, 4, 16, 0], device=device, dtype=dtype)
+        diagonal = diagonal.unsqueeze(-1).expand(-1, matrix_size)
+        x = torch.diag_embed(diagonal)
+        expected = torch.diag_embed(diagonal.exp())
+        x[nonfinite_index, 0, 0] = value
+        actual = torch.linalg.matrix_exp(x)
+        if matrix_size == 1:
+            expected = x.exp()
+        else:
+            self.assertEqual(actual.shape, x.shape)
+            affected = actual[nonfinite_index]
+            if math.isnan(value):
+                self.assertEqual(affected.isnan(), torch.ones_like(affected, dtype=torch.bool))
+            else:
+                # Infinite inputs need not produce NaNs, but must not affect other matrices.
+                self.assertEqual(affected.isfinite().all(), False)
+            finite_indices = [i for i in range(4) if i != nonfinite_index]
+            actual = actual[finite_indices]
+            expected = expected[finite_indices]
+        self.assertEqual(actual, expected, equal_nan=True, exact_device=True)
+
     @skipCPUIfNoLapack
     @dtypes(torch.float, torch.double, torch.complex64, torch.complex128)
     def test_linalg_matrix_exp_perverse_nan_values(self, device, dtype):
