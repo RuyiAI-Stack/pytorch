@@ -147,6 +147,12 @@ jobs:
           echo "ci_stat_url=$CI_STAT_URL" >> "$GITHUB_OUTPUT"
           echo "ci_result_base_url=$CI_RESULT_BASE_URL" >> "$GITHUB_OUTPUT"
 
+          # something build is ok but CI which none is okay
+          if [[ "$JENKINS_RC" -ne 0 ]]; then
+            echo "::error::Jenkins CI failed with exit code $JENKINS_RC"
+            exit 1
+          fi
+
           echo "CI_STAT_URL=$CI_STAT_URL"
           echo "CI_RESULT_BASE_URL=$CI_RESULT_BASE_URL"
 
@@ -200,14 +206,17 @@ jobs:
           cat pytorch-ci-stat.json
           echo
 
-          FAILED=$(jq '.failed | length' pytorch-ci-stat.json)
+          PASSED=$(jq -r '.summary.PASSED // 0' pytorch-ci-stat.json)
+          FAILED=$(jq -r '.failed | length' pytorch-ci-stat.json)
 
-          if [[ "$FAILED" != "0" ]]; then
-            echo "==== FULL TEST FAILED ===="
-            echo "failed cases: $FAILED"
+          if [[ "$PASSED" -eq 0 ]]; then
+            echo "::error::CI recorded zero passing tests"
             exit 1
+          elif [[ "$FAILED" -ne 0 ]]; then
+            echo "::error::CI reported $FAILED failed tests"
+            jq '.failed' pytorch-ci-stat.json
+            exit 1
+          else
+            echo "CI succeeded: $PASSED tests passed and no tests failed"
           fi
-
-          echo "==== FULL TEST PASSED ===="
-          echo "full test no failures"
 
