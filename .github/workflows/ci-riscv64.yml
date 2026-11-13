@@ -125,6 +125,7 @@ jobs:
 
           BASE=${{ steps.meta.outputs.base_commit }}
           PATCH=${{ steps.patch.outputs.patch_file }}
+          STAT_FILE="$RUNNER_TEMP/pytorch-ci-stat.json"
           CORE_RESULT_FILE="$RUNNER_TEMP/pytorch-core-ci-stat.json"
 
 
@@ -147,16 +148,22 @@ jobs:
           echo "ci_stat_url=$CI_STAT_URL" >> "$GITHUB_OUTPUT"
           echo "ci_result_base_url=$CI_RESULT_BASE_URL" >> "$GITHUB_OUTPUT"
 
-          # something build is ok but CI which none is okay
-          if [[ "$JENKINS_RC" -ne 0 ]]; then
-            echo "::error::Jenkins CI failed with exit code $JENKINS_RC"
-            exit 1
-          fi
-
           echo "CI_STAT_URL=$CI_STAT_URL"
           echo "CI_RESULT_BASE_URL=$CI_RESULT_BASE_URL"
 
-
+          if ! curl \
+            --fail \
+            --silent \
+            --show-error \
+            --location \
+            --retry 5 \
+            --retry-delay 5 \
+            --retry-connrefused \
+            --output "$STAT_FILE" \
+            "$CI_STAT_URL"; then
+            echo "::error::Failed to download $CI_STAT_URL"
+            exit 1
+          fi
 
           if ! curl \
             --fail \
@@ -166,21 +173,30 @@ jobs:
             --retry 5 \
            --retry-delay 5 \
            --retry-connrefused \
-           --output "$CORE_RESULT_FILE" \
-           "$CI_CORE_RESULT_URL"; then
-           echo "::error::Failed to download $CI_CORE_RESULT_URL"
-           exit 1
+            --output "$CORE_RESULT_FILE" \
+            "$CI_CORE_RESULT_URL"; then
+            echo "::error::Failed to download $CI_CORE_RESULT_URL"
+            exit 1
           fi
 
-          if jq -e '.failed == []' "$CORE_RESULT_FILE" >/dev/null; then
-            echo "Core CI succeeded: no failed tests"
-            exit 0
-          fi
+          PASSED=$(jq -r '.summary.PASSED // 0' "$STAT_FILE")
+          FAILED=$(jq -r '.failed | length' "$STAT_FILE")
+          CORE_FAILED=$(jq -r '.failed | length' "$CORE_RESULT_FILE")
 
-          echo "::error::Core CI reported failures"
-          echo "Failed tests:"
-          jq '.failed' "$CORE_RESULT_FILE" 2>/dev/null || cat "$CORE_RESULT_FILE"
-          exit 1
+          if [[ "$PASSED" -eq 0 ]]; then
+            echo "::error::CI recorded zero passing tests"
+            exit 1
+          elif [[ "$FAILED" -ne 0 ]]; then
+            echo "::error::CI reported $FAILED failed tests"
+            jq '.failed' "$STAT_FILE"
+            exit 1
+          elif [[ "$CORE_FAILED" -ne 0 ]]; then
+            echo "::error::Core CI reported $CORE_FAILED failed tests"
+            jq '.failed' "$CORE_RESULT_FILE"
+            exit 1
+          else
+            echo "CI succeeded: $PASSED tests passed and no tests failed"
+          fi
 
   full-ci:
     name: pytorch-riscv64-full-ci
@@ -219,4 +235,3 @@ jobs:
           else
             echo "CI succeeded: $PASSED tests passed and no tests failed"
           fi
-
